@@ -14,7 +14,8 @@ import {
   X
 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://uteci-backend-api.onrender.com';
+// URL del backend directo en Render
+const API_URL = 'https://uteci-backend-api.onrender.com';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -284,7 +285,7 @@ export default function App() {
                           a.estadoColegiatura === 'Al día' ? 'bg-emerald-100 text-emerald-800' :
                           a.estadoColegiatura === 'Pendiente' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
                         }`}>
-                          {a.estadoColegiatura}
+                          {a.estadoColegiatura || 'Al día'}
                         </span>
                       </div>
                     ))}
@@ -333,7 +334,7 @@ export default function App() {
                         <td className="py-3 px-4">{m.profesor}</td>
                         <td className="py-3 px-4 text-xs font-mono">{m.horario}</td>
                         <td className="py-3 px-4">
-                          <span className="inline-flex items-center gap-1 text-xs text-slate-600"><MapPin className="h-3 w-3 text-slate-400" /> {m.salon}</span>
+                          <span className="inline-flex items-center gap-1 text-xs text-slate-600"><MapPin className="h-3 w-3 text-slate-400" /> {m.salon || 'N/A'}</span>
                         </td>
                       </tr>
                     ))}
@@ -369,21 +370,21 @@ export default function App() {
                       <tr key={p.id} className="hover:bg-slate-50/80 transition">
                         <td className="py-3 px-4 font-semibold text-slate-800">{p.nombre}</td>
                         <td className="py-3 px-4">{p.especialidad}</td>
-                        <td className="py-3 px-4"><span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-1 rounded font-medium">{p.asistencia}</span></td>
+                        <td className="py-3 px-4"><span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-1 rounded font-medium">{p.asistencia || '100%'}</span></td>
                         <td className="py-3 px-4 font-mono">${Number(p.salario || 0).toLocaleString('es-MX')}</td>
                         <td className="py-3 px-4">
                           <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
-                            p.estadoPago === 'Pagado' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                            p.activo ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                           }`}>
-                            {p.estadoPago}
+                            {p.activo ? 'Activo / Pagado' : 'Pendiente'}
                           </span>
                         </td>
                         <td className="py-3 px-4">
                           <button
-                            onClick={() => toggleEstadoPagoProfesor(p.id, p.estadoPago)}
+                            onClick={() => toggleEstadoPagoProfesor(p.id, p.activo ? 'Pagado' : 'Pendiente')}
                             className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-medium transition"
                           >
-                            Cambiar Pago
+                            Cambiar Estado
                           </button>
                         </td>
                       </tr>
@@ -428,18 +429,15 @@ export default function App() {
                           <span className="text-xs text-slate-400 font-mono">{a.matricula}</span>
                         </td>
                         <td className="py-3 px-4">{a.grado} - "{a.grupo}"</td>
-                        <td className="py-3 px-4"><span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded font-medium">{a.asistencia}</span></td>
+                        <td className="py-3 px-4"><span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded font-medium">{a.asistencia || '100%'}</span></td>
                         <td className="py-3 px-4">
-                          <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
-                            a.estadoColegiatura === 'Al día' ? 'bg-emerald-100 text-emerald-800' :
-                            a.estadoColegiatura === 'Pendiente' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
-                          }`}>
-                            {a.estadoColegiatura}
+                          <span className="text-xs px-2.5 py-1 rounded-full font-semibold bg-emerald-100 text-emerald-800">
+                            {a.estadoColegiatura || 'Al día'}
                           </span>
                         </td>
                         <td className="py-3 px-4">
                           <button
-                            onClick={() => toggleColegiaturaAlumno(a.id, a.estadoColegiatura)}
+                            onClick={() => toggleColegiaturaAlumno(a.id, a.estadoColegiatura || 'Al día')}
                             className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-medium transition"
                           >
                             Actualizar Pago
@@ -479,7 +477,7 @@ export default function App() {
                       <p className="text-xs text-slate-500 mt-1">Impartido por: {t.profesor}</p>
                       <div className="mt-3 flex items-center justify-between text-xs text-slate-600 border-t border-slate-100 pt-2">
                         <span>Límite: <strong className="text-slate-700">{t.fechaEntrega}</strong></span>
-                        <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-medium">{t.entregadas} / {t.total} Entregadas</span>
+                        <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-medium">Entregas Activas</span>
                       </div>
                     </div>
                   ))}
@@ -490,7 +488,7 @@ export default function App() {
         </main>
       </div>
 
-      {/* MODAL NUEVA MATERIA */}
+      {/* MODALES REUTILIZADOS */}
       {showMateriaModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
@@ -534,7 +532,6 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL NUEVO ALUMNO */}
       {showAlumnoModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
@@ -570,7 +567,6 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL NUEVA TAREA */}
       {showTareaModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
@@ -593,7 +589,7 @@ export default function App() {
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-600">Fecha Límite</label>
-                <input type="date" required value={nuevaTarea.fechaEntrega} onChange={(e) => setNuevaTarea({...nuevaMetadata => ({...nuevaTarea, fechaEntrega: e.target.value})})} className="w-full border border-slate-300 rounded p-2 text-sm mt-1" />
+                <input type="date" required value={nuevaTarea.fechaEntrega} onChange={(e) => setNuevaTarea({...nuevaTarea, fechaEntrega: e.target.value})} className="w-full border border-slate-300 rounded p-2 text-sm mt-1" />
               </div>
               <div className="pt-2 flex justify-end gap-2">
                 <button type="button" onClick={() => setShowTareaModal(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
