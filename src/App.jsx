@@ -26,6 +26,7 @@ export default function App() {
   const [profesores, setProfesores] = useState([]);
   const [alumnos, setAlumnos] = useState([]);
   const [tareas, setTareas] = useState([]);
+  const [colegiaturasPorAlumno, setColegiaturasPorAlumno] = useState({}); // Mapeo de colegiaturas por ID de alumno
 
   // Modales
   const [showMateriaModal, setShowMateriaModal] = useState(false);
@@ -54,6 +55,20 @@ export default function App() {
       setProfesores(Array.isArray(resProf) ? resProf : []);
       setAlumnos(Array.isArray(resAlum) ? resAlum : []);
       setTareas(Array.isArray(resTar) ? resTar : []);
+
+      // Cargar las colegiaturas de cada alumno por mes[cite: 2]
+      const colegiaturasMap = {};
+      for (const alumno of (Array.isArray(resAlum) ? resAlum : [])) {
+        try {
+          const resCol = await fetch(`${API_URL}/api/alumnos/${alumno.id}/colegiaturas`);
+          const dataCol = await resCol.json();
+          colegiaturasMap[alumno.id] = Array.isArray(dataCol) ? dataCol : [];
+        } catch (err) {
+          colegiaturasMap[alumno.id] = [];
+        }
+      }
+      setColegiaturasPorAlumno(colegiaturasMap);
+
     } catch (error) {
       console.error('Error al conectar con la API:', error);
     }
@@ -122,14 +137,20 @@ export default function App() {
     }
   };
 
-  const toggleColegiaturaAlumno = async (id, estadoActual) => {
+  // Función actualizada para enviar el mes y el estado correspondiente
+  const toggleColegiaturaAlumno = async (id, mesSeleccionado, estadoActual) => {
     const siguienteEstado = estadoActual === 'Al día' ? 'Pendiente' : estadoActual === 'Pendiente' ? 'Atrasado' : 'Al día';
     try {
-      await fetch(`${API_URL}/api/alumnos/${id}/colegiatura`, {
+      const response = await fetch(`${API_URL}/api/alumnos/${id}/colegiatura`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estadoColegiatura: siguienteEstado })
+        body: JSON.stringify({ estado: siguienteEstado, mes: mesSeleccionado })
       });
+      
+      if (!response.ok) {
+        throw new Error('Error al actualizar el pago en el servidor');
+      }
+      
       fetchData();
     } catch (error) {
       console.error('Error al actualizar colegiatura:', error);
@@ -281,11 +302,8 @@ export default function App() {
                           <p className="font-medium text-slate-800">{a.nombre}</p>
                           <p className="text-xs text-slate-500">{a.matricula} • {a.grado}</p>
                         </div>
-                        <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
-                          a.estadoColegiatura === 'Al día' ? 'bg-emerald-100 text-emerald-800' :
-                          a.estadoColegiatura === 'Pendiente' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
-                        }`}>
-                          {a.estadoColegiatura || 'Al día'}
+                        <span className="text-xs px-2.5 py-1 rounded-full font-semibold bg-emerald-100 text-emerald-800">
+                          Al día
                         </span>
                       </div>
                     ))}
@@ -400,7 +418,7 @@ export default function App() {
               <div className="flex justify-between items-center">
                 <div>
                   <h2 className="text-lg font-bold text-slate-800">Registro de Alumnos y Colegiaturas</h2>
-                  <p className="text-xs text-slate-500">Control de asistencia y estado de colegiatura mensual.</p>
+                  <p className="text-xs text-slate-500">Control de asistencia y estado de colegiatura por mes[cite: 2].</p>
                 </div>
                 <button
                   onClick={() => setShowAlumnoModal(true)}
@@ -416,35 +434,41 @@ export default function App() {
                     <tr>
                       <th className="py-3 px-4">Matrícula / Nombre</th>
                       <th className="py-3 px-4">Grado / Grupo</th>
-                      <th className="py-3 px-4">Asistencia</th>
-                      <th className="py-3 px-4">Colegiatura Mensual</th>
+                      <th className="py-3 px-4">Mes</th>
+                      <th className="py-3 px-4">Estado del Pago</th>
                       <th className="py-3 px-4">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {alumnos.filter(a => a.nombre && a.nombre.toLowerCase().includes(searchTerm.toLowerCase())).map((a) => (
-                      <tr key={a.id} className="hover:bg-slate-50/80 transition">
-                        <td className="py-3 px-4">
-                          <span className="font-semibold text-slate-800 block">{a.nombre}</span>
-                          <span className="text-xs text-slate-400 font-mono">{a.matricula}</span>
-                        </td>
-                        <td className="py-3 px-4">{a.grado} - "{a.grupo}"</td>
-                        <td className="py-3 px-4"><span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded font-medium">{a.asistencia || '100%'}</span></td>
-                        <td className="py-3 px-4">
-                          <span className="text-xs px-2.5 py-1 rounded-full font-semibold bg-emerald-100 text-emerald-800">
-                            {a.estadoColegiatura || 'Al día'}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <button
-                            onClick={() => toggleColegiaturaAlumno(a.id, a.estadoColegiatura || 'Al día')}
-                            className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-medium transition"
-                          >
-                            Actualizar Pago
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {alumnos.filter(a => a.nombre && a.nombre.toLowerCase().includes(searchTerm.toLowerCase())).map((a) => {
+                      const listaColegiaturas = colegiaturasPorAlumno[a.id] || [];
+                      return listaColegiaturas.map((col) => (
+                        <tr key={`${a.id}-${col.mes}`} className="hover:bg-slate-50/80 transition">
+                          <td className="py-3 px-4">
+                            <span className="font-semibold text-slate-800 block">{a.nombre}</span>
+                            <span className="text-xs text-slate-400 font-mono">{a.matricula}</span>
+                          </td>
+                          <td className="py-3 px-4">{a.grado} - "{a.grupo}"</td>
+                          <td className="py-3 px-4 font-medium text-slate-700">{col.mes}</td>
+                          <td className="py-3 px-4">
+                            <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
+                              col.estado === 'Al día' ? 'bg-emerald-100 text-emerald-800' :
+                              col.estado === 'Pendiente' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                            }`}>
+                              {col.estado}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <button
+                              onClick={() => toggleColegiaturaAlumno(a.id, col.mes, col.estado)}
+                              className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-medium transition"
+                            >
+                              Actualizar Pago
+                            </button>
+                          </td>
+                        </tr>
+                      ));
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -488,7 +512,7 @@ export default function App() {
         </main>
       </div>
 
-      {/* MODALES REUTILIZADOS */}
+      {/* MODALES */}
       {showMateriaModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
