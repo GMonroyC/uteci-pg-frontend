@@ -14,7 +14,6 @@ import {
   X,
   CreditCard,
   CheckCircle,
-  Clock,
   AlertTriangle
 } from 'lucide-react';
 
@@ -24,7 +23,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Estados principales
   const [materias, setMaterias] = useState([]);
   const [profesores, setProfesores] = useState([]);
   const [alumnos, setAlumnos] = useState([]);
@@ -37,12 +35,18 @@ export default function App() {
   const [nuevaMateria, setNuevaMateria] = useState({ codigo: '', nombre: '', creditos: '', profesor: '', horario: '', salon: '' });
 
   const [showAlumnoModal, setShowAlumnoModal] = useState(false);
-  const [nuevoAlumno, setNuevoAlumno] = useState({ matricula: '', nombre: '', grado: '', grupo: '' });
+  const [nuevoAlumno, setNuevoAlumno] = useState({ 
+    matricula: '', 
+    nombre: '', 
+    grado: '', 
+    grupo: '', 
+    anoInicio: new Date().getFullYear().toString(), 
+    mesInicio: '0' 
+  });
 
   const [showTareaModal, setShowTareaModal] = useState(false);
   const [nuevaTarea, setNuevaTarea] = useState({ titulo: '', materia: '', profesor: '', fechaEntrega: '' });
 
-  // Modal de Historial de Pagos por Alumno
   const [alumnoSeleccionado, setAlumnoSeleccionado] = useState(null);
 
   useEffect(() => {
@@ -66,7 +70,6 @@ export default function App() {
       setTareas(Array.isArray(resTar) ? resTar : []);
       setAtrasados(Array.isArray(resAtrasados) ? resAtrasados : []);
 
-      // Cargar colegiaturas de cada alumno
       const map = {};
       for (const al of listaAlumnos) {
         try {
@@ -109,7 +112,7 @@ export default function App() {
         body: JSON.stringify(nuevoAlumno)
       });
       setShowAlumnoModal(false);
-      setNuevoAlumno({ matricula: '', nombre: '', grado: '', grupo: '' });
+      setNuevoAlumno({ matricula: '', nombre: '', grado: '', grupo: '', anoInicio: new Date().getFullYear().toString(), mesInicio: '0' });
       fetchData();
     } catch (error) {
       console.error('Error al guardar alumno:', error);
@@ -146,7 +149,6 @@ export default function App() {
     }
   };
 
-  // Cambiar estado de pago de un mes específico para un alumno
   const cambiarEstadoColegiatura = async (alumnoId, mes, estadoActual) => {
     const siguienteEstado = estadoActual === 'Al día' ? 'Pendiente' : estadoActual === 'Pendiente' ? 'Atrasado' : 'Al día';
     try {
@@ -159,6 +161,42 @@ export default function App() {
     } catch (error) {
       console.error('Error al actualizar colegiatura:', error);
     }
+  };
+
+  // Función para calcular los pagos X y los meses transcurridos n a la fecha actual
+  const calcularEstatusAlumno = (cols) => {
+    if (!cols || cols.length === 0) return { pagados: 0, n: 0, alDia: true };
+
+    const hoy = new Date();
+    const anoActual = hoy.getFullYear();
+    const mesActualIdx = hoy.getMonth(); // 0 - 11
+
+    let transcurridos = 0;
+    let pagados = 0;
+
+    const nombresMeses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+    cols.forEach((col) => {
+      if (col.estado === 'Al día') pagados++;
+
+      // Extrae mes y año del registro (Ej: "Agosto 2026" o "Enero")
+      const partes = col.mes.split(' ');
+      const nombreMes = partes[0];
+      const anoReg = partes[1] ? parseInt(partes[1]) : anoActual;
+      const idxMesReg = nombresMeses.indexOf(nombreMes);
+
+      if (idxMesReg !== -1) {
+        // Evalúa si el mes registrado es anterior o igual al mes/año actual
+        if (anoReg < anoActual || (anoReg === anoActual && idxMesReg <= mesActualIdx)) {
+          transcurridos++;
+        }
+      }
+    });
+
+    const n = transcurridos > 0 ? transcurridos : cols.length;
+    const alDia = pagados >= n;
+
+    return { pagados, n, alDia };
   };
 
   return (
@@ -180,7 +218,6 @@ export default function App() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full flex flex-col md:flex-row gap-6">
-        {/* MENÚ LATERAL */}
         <aside className="w-full md:w-64 bg-white rounded-xl shadow-sm border border-slate-200 p-4 shrink-0">
           <nav className="space-y-1">
             <button
@@ -247,7 +284,6 @@ export default function App() {
           </nav>
         </aside>
 
-        {/* CONTENIDO PRINCIPAL */}
         <main className="flex-1 space-y-6">
           <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center gap-3">
             <Search className="h-5 w-5 text-slate-400" />
@@ -321,7 +357,7 @@ export default function App() {
                   <div className="space-y-3">
                     {alumnos.map((a) => {
                       const cols = colegiaturasMap[a.id] || [];
-                      const adeudos = cols.filter(c => c.estado !== 'Al día').length;
+                      const { pagados, n, alDia } = calcularEstatusAlumno(cols);
                       return (
                         <div key={a.id} className="p-3 bg-slate-50 rounded-lg flex justify-between items-center text-sm">
                           <div>
@@ -329,9 +365,9 @@ export default function App() {
                             <p className="text-xs text-slate-500">{a.matricula} • {a.grado}</p>
                           </div>
                           <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
-                            adeudos === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                            alDia ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                           }`}>
-                            {adeudos === 0 ? 'Al día' : `${adeudos} meses pendientes`}
+                            {pagados}/{n} Pagados
                           </span>
                         </div>
                       );
@@ -350,10 +386,7 @@ export default function App() {
                   <h2 className="text-lg font-bold text-slate-800">Control de Materias e Impartición</h2>
                   <p className="text-xs text-slate-500">Registro de créditos, salones, horarios y profesores.</p>
                 </div>
-                <button
-                  onClick={() => setShowMateriaModal(true)}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2 transition"
-                >
+                <button onClick={() => setShowMateriaModal(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2 transition">
                   <Plus className="h-4 w-4" /> Nueva Materia
                 </button>
               </div>
@@ -372,18 +405,11 @@ export default function App() {
                   <tbody className="divide-y divide-slate-100">
                     {materias.filter(m => m.nombre && m.nombre.toLowerCase().includes(searchTerm.toLowerCase())).map((m) => (
                       <tr key={m.id} className="hover:bg-slate-50/80 transition">
-                        <td className="py-3 px-4">
-                          <span className="font-semibold text-slate-800 block">{m.nombre}</span>
-                          <span className="text-xs text-slate-400 font-mono">{m.codigo}</span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800">{m.creditos} pts</span>
-                        </td>
+                        <td className="py-3 px-4"><span className="font-semibold text-slate-800 block">{m.nombre}</span><span className="text-xs text-slate-400 font-mono">{m.codigo}</span></td>
+                        <td className="py-3 px-4"><span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800">{m.creditos} pts</span></td>
                         <td className="py-3 px-4">{m.profesor}</td>
                         <td className="py-3 px-4 text-xs font-mono">{m.horario}</td>
-                        <td className="py-3 px-4">
-                          <span className="inline-flex items-center gap-1 text-xs text-slate-600"><MapPin className="h-3 w-3 text-slate-400" /> {m.salon || 'N/A'}</span>
-                        </td>
+                        <td className="py-3 px-4"><span className="inline-flex items-center gap-1 text-xs text-slate-600"><MapPin className="h-3 w-3 text-slate-400" /> {m.salon || 'N/A'}</span></td>
                       </tr>
                     ))}
                   </tbody>
@@ -422,17 +448,12 @@ export default function App() {
                         <td className="py-3 px-4"><span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-1 rounded font-medium">{p.asistencia || '100%'}</span></td>
                         <td className="py-3 px-4 font-mono">${Number(p.salario || 0).toLocaleString('es-MX')}</td>
                         <td className="py-3 px-4">
-                          <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
-                            p.activo ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                          }`}>
+                          <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${p.activo ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
                             {p.activo ? 'Activo / Pagado' : 'Pendiente'}
                           </span>
                         </td>
                         <td className="py-3 px-4">
-                          <button
-                            onClick={() => toggleEstadoPagoProfesor(p.id, p.activo ? 'Pagado' : 'Pendiente')}
-                            className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-medium transition"
-                          >
+                          <button onClick={() => toggleEstadoPagoProfesor(p.id, p.activo ? 'Pagado' : 'Pendiente')} className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-medium transition">
                             Cambiar Estado
                           </button>
                         </td>
@@ -444,18 +465,15 @@ export default function App() {
             </div>
           )}
 
-          {/* ALUMNOS (TABLA UNIFICADA) */}
+          {/* ALUMNOS (TABLA UNIFICADA X/n) */}
           {activeTab === 'alumnos' && (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
               <div className="flex justify-between items-center">
                 <div>
                   <h2 className="text-lg font-bold text-slate-800">Registro de Alumnos y Colegiaturas</h2>
-                  <p className="text-xs text-slate-500">Lista general de alumnos y acceso a su historial de colegiaturas.</p>
+                  <p className="text-xs text-slate-500">Lista general con seguimiento dinámico de pagos por periodo.</p>
                 </div>
-                <button
-                  onClick={() => setShowAlumnoModal(true)}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2 transition"
-                >
+                <button onClick={() => setShowAlumnoModal(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2 transition">
                   <Plus className="h-4 w-4" /> Inscribir Alumno
                 </button>
               </div>
@@ -466,14 +484,14 @@ export default function App() {
                     <tr>
                       <th className="py-3 px-4">Matrícula / Nombre</th>
                       <th className="py-3 px-4">Grado / Grupo</th>
-                      <th className="py-3 px-4">Estatus General</th>
+                      <th className="py-3 px-4">Estatus Cumplimiento (X/n)</th>
                       <th className="py-3 px-4">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {alumnos.filter(a => a.nombre && a.nombre.toLowerCase().includes(searchTerm.toLowerCase())).map((a) => {
                       const cols = colegiaturasMap[a.id] || [];
-                      const pendientes = cols.filter(c => c.estado !== 'Al día').length;
+                      const { pagados, n, alDia } = calcularEstatusAlumno(cols);
 
                       return (
                         <tr key={a.id} className="hover:bg-slate-50/80 transition">
@@ -484,9 +502,9 @@ export default function App() {
                           <td className="py-3 px-4">{a.grado} - "{a.grupo}"</td>
                           <td className="py-3 px-4">
                             <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
-                              pendientes === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                              alDia ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                             }`}>
-                              {pendientes === 0 ? 'Al día (12 Meses)' : `${pendientes} mes(es) pendiente(s)`}
+                              {pagados}/{n} Pagados {alDia ? '(Al día)' : '(Con adeudo)'}
                             </span>
                           </td>
                           <td className="py-3 px-4">
@@ -506,7 +524,7 @@ export default function App() {
             </div>
           )}
 
-          {/* VISTA: COLEGIATURAS ATRASADAS (PANEL DE COBRANZA) */}
+          {/* VISTA: COLEGIATURAS ATRASADAS */}
           {activeTab === 'atrasados' && (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
               <div className="flex justify-between items-center border-b border-slate-100 pb-4">
@@ -581,10 +599,7 @@ export default function App() {
                     <h2 className="text-lg font-bold text-slate-800">Asignación de Tareas por Profesor</h2>
                     <p className="text-xs text-slate-500">Registro de tareas creadas por el equipo docente.</p>
                   </div>
-                  <button
-                    onClick={() => setShowTareaModal(true)}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2 transition"
-                  >
+                  <button onClick={() => setShowTareaModal(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2 transition">
                     <Plus className="h-4 w-4" /> Asignar Tarea
                   </button>
                 </div>
@@ -610,13 +625,13 @@ export default function App() {
         </main>
       </div>
 
-      {/* MODAL: HISTORIAL DE COLEGIATURAS Y PAGOS POR ALUMNO */}
+      {/* MODAL: HISTORIAL DE COLEGIATURAS POR ALUMNO */}
       {alumnoSeleccionado && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-2xl w-full p-6 space-y-4 shadow-xl max-h-[90vh] flex flex-col">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
-                <h3 className="font-bold text-slate-800 text-lg">Historial de Colegiaturas 2026</h3>
+                <h3 className="font-bold text-slate-800 text-lg">Historial de Colegiaturas</h3>
                 <p className="text-xs text-slate-500">{alumnoSeleccionado.nombre} • Matrícula: {alumnoSeleccionado.matricula}</p>
               </div>
               <button onClick={() => setAlumnoSeleccionado(null)} className="text-slate-400 hover:text-slate-600">
@@ -652,10 +667,7 @@ export default function App() {
             </div>
 
             <div className="pt-2 border-t border-slate-100 flex justify-end">
-              <button
-                onClick={() => setAlumnoSeleccionado(null)}
-                className="px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-900 transition"
-              >
+              <button onClick={() => setAlumnoSeleccionado(null)} className="px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-900 transition">
                 Cerrar
               </button>
             </div>
@@ -663,7 +675,81 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: NUEVA MATERIA */}
+      {/* MODAL: INSCRIBIR ALUMNO (CON SELECTORES DE AÑO Y MES DE INICIO) */}
+      {showAlumnoModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-slate-800">Inscribir Nuevo Alumno</h3>
+              <button onClick={() => setShowAlumnoModal(false)} className="text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
+            </div>
+            <form onSubmit={handleAddAlumno} className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-600">Matrícula</label>
+                <input type="text" required placeholder="ALU-2026-XX" value={nuevoAlumno.matricula} onChange={(e) => setNuevoAlumno({...nuevoAlumno, matricula: e.target.value})} className="w-full border border-slate-300 rounded p-2 text-sm mt-1" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600">Nombre Completo</label>
+                <input type="text" required placeholder="Nombre Apellidos" value={nuevoAlumno.nombre} onChange={(e) => setNuevoAlumno({...nuevoAlumno, nombre: e.target.value})} className="w-full border border-slate-300 rounded p-2 text-sm mt-1" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Grado / Semestre</label>
+                  <input type="text" required placeholder="1er Semestre" value={nuevoAlumno.grado} onChange={(e) => setNuevoAlumno({...nuevoAlumno, grado: e.target.value})} className="w-full border border-slate-300 rounded p-2 text-sm mt-1" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Grupo</label>
+                  <input type="text" required placeholder="A" value={nuevoAlumno.grupo} onChange={(e) => setNuevoAlumno({...nuevoAlumno, grupo: e.target.value})} className="w-full border border-slate-300 rounded p-2 text-sm mt-1" />
+                </div>
+              </div>
+
+              {/* SELECTORES DE INICIO DE PERIODO */}
+              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Año de Inicio</label>
+                  <select 
+                    value={nuevoAlumno.anoInicio} 
+                    onChange={(e) => setNuevoAlumno({...nuevoAlumno, anoInicio: e.target.value})}
+                    className="w-full border border-slate-300 rounded p-2 text-sm mt-1 bg-white"
+                  >
+                    <option value="2025">2025</option>
+                    <option value="2026">2026</option>
+                    <option value="2027">2027</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Mes de Inicio</label>
+                  <select 
+                    value={nuevoAlumno.mesInicio} 
+                    onChange={(e) => setNuevoAlumno({...nuevoAlumno, mesInicio: e.target.value})}
+                    className="w-full border border-slate-300 rounded p-2 text-sm mt-1 bg-white"
+                  >
+                    <option value="0">Enero</option>
+                    <option value="1">Febrero</option>
+                    <option value="2">Marzo</option>
+                    <option value="3">Abril</option>
+                    <option value="4">Mayo</option>
+                    <option value="5">Junio</option>
+                    <option value="6">Julio</option>
+                    <option value="7">Agosto</option>
+                    <option value="8">Septiembre</option>
+                    <option value="9">Octubre</option>
+                    <option value="10">Noviembre</option>
+                    <option value="11">Diciembre</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button type="button" onClick={() => setShowAlumnoModal(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
+                <button type="submit" className="px-4 py-2 text-sm bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700">Inscribir Alumno</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODALES MATERIA Y TAREA */}
       {showMateriaModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
@@ -707,43 +793,6 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: INSCRIBIR ALUMNO */}
-      {showAlumnoModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-slate-800">Inscribir Nuevo Alumno</h3>
-              <button onClick={() => setShowAlumnoModal(false)} className="text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
-            </div>
-            <form onSubmit={handleAddAlumno} className="space-y-3">
-              <div>
-                <label className="text-xs font-semibold text-slate-600">Matrícula</label>
-                <input type="text" required placeholder="ALU-2024-XX" value={nuevoAlumno.matricula} onChange={(e) => setNuevoAlumno({...nuevoAlumno, matricula: e.target.value})} className="w-full border border-slate-300 rounded p-2 text-sm mt-1" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600">Nombre Completo</label>
-                <input type="text" required placeholder="Nombre Apellidos" value={nuevoAlumno.nombre} onChange={(e) => setNuevoAlumno({...nuevoAlumno, nombre: e.target.value})} className="w-full border border-slate-300 rounded p-2 text-sm mt-1" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-slate-600">Grado / Semestre</label>
-                  <input type="text" required placeholder="1er Semestre" value={nuevoAlumno.grado} onChange={(e) => setNuevoAlumno({...nuevoAlumno, grado: e.target.value})} className="w-full border border-slate-300 rounded p-2 text-sm mt-1" />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-600">Grupo</label>
-                  <input type="text" required placeholder="A" value={nuevoAlumno.grupo} onChange={(e) => setNuevoAlumno({...nuevoAlumno, grupo: e.target.value})} className="w-full border border-slate-300 rounded p-2 text-sm mt-1" />
-                </div>
-              </div>
-              <div className="pt-2 flex justify-end gap-2">
-                <button type="button" onClick={() => setShowAlumnoModal(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
-                <button type="submit" className="px-4 py-2 text-sm bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700">Inscribir Alumno</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: NUEVA TAREA */}
       {showTareaModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
