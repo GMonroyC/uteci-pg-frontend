@@ -11,22 +11,26 @@ import {
   Plus, 
   Search, 
   MapPin, 
-  X
+  X,
+  CreditCard,
+  CheckCircle,
+  Clock,
+  AlertTriangle
 } from 'lucide-react';
 
-// URL del backend directo en Render
 const API_URL = 'https://uteci-backend-api.onrender.com';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Estados cargados desde la API
+  // Estados principales
   const [materias, setMaterias] = useState([]);
   const [profesores, setProfesores] = useState([]);
   const [alumnos, setAlumnos] = useState([]);
   const [tareas, setTareas] = useState([]);
-  const [colegiaturasPorAlumno, setColegiaturasPorAlumno] = useState({}); // Mapeo de colegiaturas por ID de alumno
+  const [atrasados, setAtrasados] = useState([]);
+  const [colegiaturasMap, setColegiaturasMap] = useState({});
 
   // Modales
   const [showMateriaModal, setShowMateriaModal] = useState(false);
@@ -38,43 +42,48 @@ export default function App() {
   const [showTareaModal, setShowTareaModal] = useState(false);
   const [nuevaTarea, setNuevaTarea] = useState({ titulo: '', materia: '', profesor: '', fechaEntrega: '' });
 
-  // Cargar datos al iniciar
+  // Modal de Historial de Pagos por Alumno
+  const [alumnoSeleccionado, setAlumnoSeleccionado] = useState(null);
+
   useEffect(() => {
     fetchData();
   }, []);
 
   const fetchData = async () => {
     try {
-      const [resMat, resProf, resAlum, resTar] = await Promise.all([
+      const [resMat, resProf, resAlum, resTar, resAtrasados] = await Promise.all([
         fetch(`${API_URL}/api/materias`).then(res => res.json()),
         fetch(`${API_URL}/api/profesores`).then(res => res.json()),
         fetch(`${API_URL}/api/alumnos`).then(res => res.json()),
-        fetch(`${API_URL}/api/tareas`).then(res => res.json())
+        fetch(`${API_URL}/api/tareas`).then(res => res.json()),
+        fetch(`${API_URL}/api/colegiaturas/atrasadas`).then(res => res.json())
       ]);
+
       setMaterias(Array.isArray(resMat) ? resMat : []);
       setProfesores(Array.isArray(resProf) ? resProf : []);
-      setAlumnos(Array.isArray(resAlum) ? resAlum : []);
+      const listaAlumnos = Array.isArray(resAlum) ? resAlum : [];
+      setAlumnos(listaAlumnos);
       setTareas(Array.isArray(resTar) ? resTar : []);
+      setAtrasados(Array.isArray(resAtrasados) ? resAtrasados : []);
 
-      // Cargar las colegiaturas de cada alumno por mes[cite: 2]
-      const colegiaturasMap = {};
-      for (const alumno of (Array.isArray(resAlum) ? resAlum : [])) {
+      // Cargar colegiaturas de cada alumno
+      const map = {};
+      for (const al of listaAlumnos) {
         try {
-          const resCol = await fetch(`${API_URL}/api/alumnos/${alumno.id}/colegiaturas`);
+          const resCol = await fetch(`${API_URL}/api/alumnos/${al.id}/colegiaturas`);
           const dataCol = await resCol.json();
-          colegiaturasMap[alumno.id] = Array.isArray(dataCol) ? dataCol : [];
-        } catch (err) {
-          colegiaturasMap[alumno.id] = [];
+          map[al.id] = Array.isArray(dataCol) ? dataCol : [];
+        } catch {
+          map[al.id] = [];
         }
       }
-      setColegiaturasPorAlumno(colegiaturasMap);
+      setColegiaturasMap(map);
 
     } catch (error) {
       console.error('Error al conectar con la API:', error);
     }
   };
 
-  // Handlers para interactuar con la base de datos
   const handleAddMateria = async (e) => {
     e.preventDefault();
     try {
@@ -137,21 +146,16 @@ export default function App() {
     }
   };
 
-  // Función actualizada para enviar el mes y el estado correspondiente
-  const toggleColegiaturaAlumno = async (id, mesSeleccionado, estadoActual) => {
+  // Cambiar estado de pago de un mes específico para un alumno
+  const cambiarEstadoColegiatura = async (alumnoId, mes, estadoActual) => {
     const siguienteEstado = estadoActual === 'Al día' ? 'Pendiente' : estadoActual === 'Pendiente' ? 'Atrasado' : 'Al día';
     try {
-      const response = await fetch(`${API_URL}/api/alumnos/${id}/colegiatura`, {
+      await fetch(`${API_URL}/api/alumnos/${alumnoId}/colegiatura`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: siguienteEstado, mes: mesSeleccionado })
+        body: JSON.stringify({ estado: siguienteEstado, mes })
       });
-      
-      if (!response.ok) {
-        throw new Error('Error al actualizar el pago en el servidor');
-      }
-      
-      fetchData();
+      await fetchData();
     } catch (error) {
       console.error('Error al actualizar colegiatura:', error);
     }
@@ -176,6 +180,7 @@ export default function App() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full flex flex-col md:flex-row gap-6">
+        {/* MENÚ LATERAL */}
         <aside className="w-full md:w-64 bg-white rounded-xl shadow-sm border border-slate-200 p-4 shrink-0">
           <nav className="space-y-1">
             <button
@@ -215,6 +220,22 @@ export default function App() {
               <span>Alumnos y Colegiaturas</span>
             </button>
             <button
+              onClick={() => setActiveTab('atrasados')}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === 'atrasados' ? 'bg-rose-50 text-rose-700' : 'text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <div className="flex items-center space-x-3">
+                <AlertTriangle className="h-4 w-4 text-rose-600" />
+                <span>Colegiaturas Atrasadas</span>
+              </div>
+              {atrasados.length > 0 && (
+                <span className="bg-rose-600 text-white text-xs px-2 py-0.5 rounded-full font-bold">
+                  {atrasados.length}
+                </span>
+              )}
+            </button>
+            <button
               onClick={() => setActiveTab('tareas')}
               className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 activeTab === 'tareas' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
@@ -226,6 +247,7 @@ export default function App() {
           </nav>
         </aside>
 
+        {/* CONTENIDO PRINCIPAL */}
         <main className="flex-1 space-y-6">
           <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center gap-3">
             <Search className="h-5 w-5 text-slate-400" />
@@ -238,6 +260,7 @@ export default function App() {
             />
           </div>
 
+          {/* DASHBOARD */}
           {activeTab === 'dashboard' && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -293,26 +316,33 @@ export default function App() {
 
                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                   <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                    <AlertCircle className="h-5 w-5 text-amber-600" /> Estado de Colegiaturas
+                    <AlertCircle className="h-5 w-5 text-amber-600" /> Resumen de Colegiaturas
                   </h3>
                   <div className="space-y-3">
-                    {alumnos.map((a) => (
-                      <div key={a.id} className="p-3 bg-slate-50 rounded-lg flex justify-between items-center text-sm">
-                        <div>
-                          <p className="font-medium text-slate-800">{a.nombre}</p>
-                          <p className="text-xs text-slate-500">{a.matricula} • {a.grado}</p>
+                    {alumnos.map((a) => {
+                      const cols = colegiaturasMap[a.id] || [];
+                      const adeudos = cols.filter(c => c.estado !== 'Al día').length;
+                      return (
+                        <div key={a.id} className="p-3 bg-slate-50 rounded-lg flex justify-between items-center text-sm">
+                          <div>
+                            <p className="font-medium text-slate-800">{a.nombre}</p>
+                            <p className="text-xs text-slate-500">{a.matricula} • {a.grado}</p>
+                          </div>
+                          <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
+                            adeudos === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                          }`}>
+                            {adeudos === 0 ? 'Al día' : `${adeudos} meses pendientes`}
+                          </span>
                         </div>
-                        <span className="text-xs px-2.5 py-1 rounded-full font-semibold bg-emerald-100 text-emerald-800">
-                          Al día
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
             </div>
           )}
 
+          {/* MATERIAS */}
           {activeTab === 'materias' && (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
               <div className="flex justify-between items-center">
@@ -362,6 +392,7 @@ export default function App() {
             </div>
           )}
 
+          {/* PROFESORES */}
           {activeTab === 'profesores' && (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
               <div className="flex justify-between items-center">
@@ -413,12 +444,13 @@ export default function App() {
             </div>
           )}
 
+          {/* ALUMNOS (TABLA UNIFICADA) */}
           {activeTab === 'alumnos' && (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
               <div className="flex justify-between items-center">
                 <div>
                   <h2 className="text-lg font-bold text-slate-800">Registro de Alumnos y Colegiaturas</h2>
-                  <p className="text-xs text-slate-500">Control de asistencia y estado de colegiatura por mes[cite: 2].</p>
+                  <p className="text-xs text-slate-500">Lista general de alumnos y acceso a su historial de colegiaturas.</p>
                 </div>
                 <button
                   onClick={() => setShowAlumnoModal(true)}
@@ -434,40 +466,39 @@ export default function App() {
                     <tr>
                       <th className="py-3 px-4">Matrícula / Nombre</th>
                       <th className="py-3 px-4">Grado / Grupo</th>
-                      <th className="py-3 px-4">Mes</th>
-                      <th className="py-3 px-4">Estado del Pago</th>
+                      <th className="py-3 px-4">Estatus General</th>
                       <th className="py-3 px-4">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {alumnos.filter(a => a.nombre && a.nombre.toLowerCase().includes(searchTerm.toLowerCase())).map((a) => {
-                      const listaColegiaturas = colegiaturasPorAlumno[a.id] || [];
-                      return listaColegiaturas.map((col) => (
-                        <tr key={`${a.id}-${col.mes}`} className="hover:bg-slate-50/80 transition">
+                      const cols = colegiaturasMap[a.id] || [];
+                      const pendientes = cols.filter(c => c.estado !== 'Al día').length;
+
+                      return (
+                        <tr key={a.id} className="hover:bg-slate-50/80 transition">
                           <td className="py-3 px-4">
                             <span className="font-semibold text-slate-800 block">{a.nombre}</span>
                             <span className="text-xs text-slate-400 font-mono">{a.matricula}</span>
                           </td>
                           <td className="py-3 px-4">{a.grado} - "{a.grupo}"</td>
-                          <td className="py-3 px-4 font-medium text-slate-700">{col.mes}</td>
                           <td className="py-3 px-4">
                             <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
-                              col.estado === 'Al día' ? 'bg-emerald-100 text-emerald-800' :
-                              col.estado === 'Pendiente' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                              pendientes === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                             }`}>
-                              {col.estado}
+                              {pendientes === 0 ? 'Al día (12 Meses)' : `${pendientes} mes(es) pendiente(s)`}
                             </span>
                           </td>
                           <td className="py-3 px-4">
                             <button
-                              onClick={() => toggleColegiaturaAlumno(a.id, col.mes, col.estado)}
-                              className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-medium transition"
+                              onClick={() => setAlumnoSeleccionado(a)}
+                              className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1"
                             >
-                              Actualizar Pago
+                              <CreditCard className="h-3.5 w-3.5" /> Ver Historial / Pagos
                             </button>
                           </td>
                         </tr>
-                      ));
+                      );
                     })}
                   </tbody>
                 </table>
@@ -475,6 +506,73 @@ export default function App() {
             </div>
           )}
 
+          {/* VISTA: COLEGIATURAS ATRASADAS (PANEL DE COBRANZA) */}
+          {activeTab === 'atrasados' && (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-rose-600" /> Panel de Colegiaturas Atrasadas
+                  </h2>
+                  <p className="text-xs text-slate-500">Alumnos con adeudos pendientes y desglose por cobrar.</p>
+                </div>
+              </div>
+
+              {atrasados.length === 0 ? (
+                <div className="text-center py-8 text-slate-500 text-sm">
+                  <CheckCircle className="h-10 w-10 text-emerald-500 mx-auto mb-2" />
+                  ¡Excelente! Todos los alumnos se encuentran al día con sus colegiaturas.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm text-slate-600">
+                    <thead className="bg-rose-50 text-rose-900 text-xs uppercase font-semibold border-b border-rose-100">
+                      <tr>
+                        <th className="py-3 px-4">Alumno / Matrícula</th>
+                        <th className="py-3 px-4">Grado</th>
+                        <th className="py-3 px-4">Meses Pendientes</th>
+                        <th className="py-3 px-4">Monto Total Adeudado</th>
+                        <th className="py-3 px-4">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {atrasados.filter(a => a.nombre.toLowerCase().includes(searchTerm.toLowerCase())).map((item) => (
+                        <tr key={item.alumno_id} className="hover:bg-slate-50 transition">
+                          <td className="py-3 px-4 font-medium text-slate-800">
+                            {item.nombre}
+                            <span className="block text-xs font-mono text-slate-400">{item.matricula}</span>
+                          </td>
+                          <td className="py-3 px-4">{item.grado} - "{item.grupo}"</td>
+                          <td className="py-3 px-4">
+                            <span className="text-xs bg-rose-100 text-rose-800 px-2 py-0.5 rounded font-medium block w-fit mb-1">
+                              {item.meses_adeudados} mes(es)
+                            </span>
+                            <span className="text-xs text-slate-500">{item.lista_meses_pendientes}</span>
+                          </td>
+                          <td className="py-3 px-4 font-bold text-rose-600 font-mono">
+                            ${Number(item.total_adeudado).toLocaleString('es-MX')} MXN
+                          </td>
+                          <td className="py-3 px-4">
+                            <button
+                              onClick={() => {
+                                const al = alumnos.find(x => x.id === item.alumno_id);
+                                if (al) setAlumnoSeleccionado(al);
+                              }}
+                              className="text-xs bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-lg font-medium transition"
+                            >
+                              Gestionar Pago
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAREAS */}
           {activeTab === 'tareas' && (
             <div className="space-y-6">
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
@@ -512,7 +610,60 @@ export default function App() {
         </main>
       </div>
 
-      {/* MODALES */}
+      {/* MODAL: HISTORIAL DE COLEGIATURAS Y PAGOS POR ALUMNO */}
+      {alumnoSeleccionado && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-2xl w-full p-6 space-y-4 shadow-xl max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="font-bold text-slate-800 text-lg">Historial de Colegiaturas 2026</h3>
+                <p className="text-xs text-slate-500">{alumnoSeleccionado.nombre} • Matrícula: {alumnoSeleccionado.matricula}</p>
+              </div>
+              <button onClick={() => setAlumnoSeleccionado(null)} className="text-slate-400 hover:text-slate-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 pr-1 space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {(colegiaturasMap[alumnoSeleccionado.id] || []).map((col) => (
+                  <div key={col.id || col.mes} className="p-3 border border-slate-200 rounded-lg flex items-center justify-between bg-slate-50/50">
+                    <div>
+                      <p className="font-semibold text-slate-800 text-sm">{col.mes}</p>
+                      <p className="text-xs text-slate-500 font-mono">${Number(col.monto).toLocaleString('es-MX')} MXN</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                        col.estado === 'Al día' ? 'bg-emerald-100 text-emerald-800' :
+                        col.estado === 'Pendiente' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                      }`}>
+                        {col.estado}
+                      </span>
+                      <button
+                        onClick={() => cambiarEstadoColegiatura(alumnoSeleccionado.id, col.mes, col.estado)}
+                        className="text-[11px] bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 px-2 py-1 rounded transition"
+                      >
+                        Cambiar Estado
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={() => setAlumnoSeleccionado(null)}
+                className="px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-900 transition"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: NUEVA MATERIA */}
       {showMateriaModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
@@ -556,6 +707,7 @@ export default function App() {
         </div>
       )}
 
+      {/* MODAL: INSCRIBIR ALUMNO */}
       {showAlumnoModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
@@ -591,6 +743,7 @@ export default function App() {
         </div>
       )}
 
+      {/* MODAL: NUEVA TAREA */}
       {showTareaModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
