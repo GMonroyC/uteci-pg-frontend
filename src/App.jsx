@@ -150,8 +150,11 @@ export default function App() {
   };
 
   // Función corregida: usa alumnoId y el nombre del mes exacto
-  const cambiarEstadoColegiatura = async (alumnoId, mes, estadoActual) => {
+const cambiarEstadoColegiatura = async (alumnoId, mes, estadoActual) => {
     const siguienteEstado = estadoActual === 'Al día' ? 'Pendiente' : estadoActual === 'Pendiente' ? 'Atrasado' : 'Al día';
+    
+    console.log(`Intentando cambiar alumno ${alumnoId}, mes ${mes} de [${estadoActual}] a [${siguienteEstado}]`);
+
     try {
       const res = await fetch(`${API_URL}/api/alumnos/${alumnoId}/colegiatura`, {
         method: 'PUT',
@@ -159,16 +162,18 @@ export default function App() {
         body: JSON.stringify({ estado: siguienteEstado, mes })
       });
       
+      const data = await res.json();
+      console.log('Respuesta del servidor:', data);
+
       if (!res.ok) {
         throw new Error('Error al actualizar colegiatura');
       }
 
-      await fetchData();
+      await fetchData(); // Recarga los datos globales
     } catch (error) {
-      console.error('Error al actualizar colegiatura:', error);
+      console.error('Error detallado al actualizar colegiatura:', error);
     }
   };
-
   // Función para calcular los pagos X y los meses transcurridos n a la fecha actual
   const calcularEstatusAlumno = (cols) => {
     if (!cols || cols.length === 0) return { pagados: 0, n: 0, alDia: true };
