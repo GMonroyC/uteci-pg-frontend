@@ -149,14 +149,20 @@ export default function App() {
     }
   };
 
+  // Función corregida: usa alumnoId y el nombre del mes exacto
   const cambiarEstadoColegiatura = async (alumnoId, mes, estadoActual) => {
     const siguienteEstado = estadoActual === 'Al día' ? 'Pendiente' : estadoActual === 'Pendiente' ? 'Atrasado' : 'Al día';
     try {
-      await fetch(`${API_URL}/api/alumnos/${alumnoId}/colegiatura`, {
+      const res = await fetch(`${API_URL}/api/alumnos/${alumnoId}/colegiatura`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ estado: siguienteEstado, mes })
       });
+      
+      if (!res.ok) {
+        throw new Error('Error al actualizar colegiatura');
+      }
+
       await fetchData();
     } catch (error) {
       console.error('Error al actualizar colegiatura:', error);
@@ -169,7 +175,7 @@ export default function App() {
 
     const hoy = new Date();
     const anoActual = hoy.getFullYear();
-    const mesActualIdx = hoy.getMonth(); // 0 - 11
+    const mesActualIdx = hoy.getMonth();
 
     let transcurridos = 0;
     let pagados = 0;
@@ -179,14 +185,12 @@ export default function App() {
     cols.forEach((col) => {
       if (col.estado === 'Al día') pagados++;
 
-      // Extrae mes y año del registro (Ej: "Agosto 2026" o "Enero")
       const partes = col.mes.split(' ');
       const nombreMes = partes[0];
       const anoReg = partes[1] ? parseInt(partes[1]) : anoActual;
       const idxMesReg = nombresMeses.indexOf(nombreMes);
 
       if (idxMesReg !== -1) {
-        // Evalúa si el mes registrado es anterior o igual al mes/año actual
         if (anoReg < anoActual || (anoReg === anoActual && idxMesReg <= mesActualIdx)) {
           transcurridos++;
         }
@@ -625,7 +629,7 @@ export default function App() {
         </main>
       </div>
 
-      {/* MODAL: HISTORIAL DE COLEGIATURAS POR ALUMNO */}
+      {/* MODAL: HISTORIAL DE COLEGIATURAS POR ALUMNO (CORREGIDO) */}
       {alumnoSeleccionado && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-2xl w-full p-6 space-y-4 shadow-xl max-h-[90vh] flex flex-col">
@@ -642,7 +646,7 @@ export default function App() {
             <div className="overflow-y-auto flex-1 pr-1 space-y-2">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {(colegiaturasMap[alumnoSeleccionado.id] || []).map((col) => (
-                  <div key={col.id || col.mes} className="p-3 border border-slate-200 rounded-lg flex items-center justify-between bg-slate-50/50">
+                  <div key={col.mes} className="p-3 border border-slate-200 rounded-lg flex items-center justify-between bg-slate-50/50">
                     <div>
                       <p className="font-semibold text-slate-800 text-sm">{col.mes}</p>
                       <p className="text-xs text-slate-500 font-mono">${Number(col.monto).toLocaleString('es-MX')} MXN</p>
@@ -675,7 +679,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: INSCRIBIR ALUMNO (CON SELECTORES DE AÑO Y MES DE INICIO) */}
+      {/* MODAL: INSCRIBIR ALUMNO */}
       {showAlumnoModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
@@ -703,7 +707,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* SELECTORES DE INICIO DE PERIODO */}
               <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
                 <div>
                   <label className="text-xs font-semibold text-slate-600">Año de Inicio</label>
