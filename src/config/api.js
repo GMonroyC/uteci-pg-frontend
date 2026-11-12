@@ -3,10 +3,9 @@
 // JAVASCRIPT CONFIGURACION DE LA API api.js
 // ==============================================
 // src/config/api.js
+const rawUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-// Para producción en la nube (comentado por ahora):
-// export const API_URL = 'https://uteci-backend-api.onrender.com';export 
+// Elimina cualquier '/' al final para evitar rutas dobles como //api/alumnos
+const API_URL = rawUrl.replace(/\/+$/, '');
 
-// Para pruebas locales (apunta a tu MySQL local):
-export const API_URL = 'http://localhost:4000';
-
+export default API_URL;

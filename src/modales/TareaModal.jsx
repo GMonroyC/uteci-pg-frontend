@@ -26,7 +26,7 @@ export default function TareaModal({ showTareaModal, setShowTareaModal, nuevaTar
           </div>
           <div>
             <label className="text-xs font-semibold text-slate-600">Profesor</label>
-            <input type="text" required placeholder="Prof. Nombre" value={nuevaTarea.profesor} onChange={(e) => setNuevaTarea({...nueva_tarea || nuevaTarea, profesor: e.target.value})} className="w-full border border-slate-300 rounded p-2 text-sm mt-1" />
+            <input type="text" required placeholder="Prof. Nombre" value={nuevaTarea.profesor} onChange={(e) => setNuevaTarea({...nuevaTarea, profesor: e.target.value})} className="w-full border border-slate-300 rounded p-2 text-sm mt-1" />
           </div>
           <div>
             <label className="text-xs font-semibold text-slate-600">Fecha Límite</label>
