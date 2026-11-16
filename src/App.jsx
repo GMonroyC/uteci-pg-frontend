@@ -2,7 +2,7 @@
 // FRONTEND src/
 // JAVASCRIPT ORQUESTADOR CENTRAL App.jsx
 // ==============================================
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Search } from 'lucide-react';
 import API_URL from './config/api';
 
@@ -54,11 +54,7 @@ export default function App() {
 
   const [alumnoSeleccionado, setAlumnoSeleccionado] = useState(null);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const cargarTodo = useCallback(async (isActive = () => true) => {
     try {
       const [resMat, resProf, resAlum, resTar, resAtrasados] = await Promise.all([
         fetch(`${API_URL}/api/materias`).then(res => res.json()),
@@ -67,6 +63,8 @@ export default function App() {
         fetch(`${API_URL}/api/tareas`).then(res => res.json()),
         fetch(`${API_URL}/api/alumnos/atrasadas/listado`).then(res => res.json())
       ]);
+
+      if (!isActive()) return;
 
       setMaterias(Array.isArray(resMat) ? resMat : []);
       setProfesores(Array.isArray(resProf) ? resProf : []);
@@ -85,12 +83,27 @@ export default function App() {
           map[al.id] = [];
         }
       }
-      setColegiaturasMap(map);
 
+      if (isActive()) {
+        setColegiaturasMap(map);
+      }
     } catch (error) {
       console.error('Error al conectar con la API:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let montado = true;
+    const iniciarCarga = async () => {
+      await cargarTodo(() => montado);
+    };
+    iniciarCarga();
+    return () => {
+      montado = false;
+    };
+  }, [cargarTodo]);
+
+  const fetchData = () => cargarTodo();
 
   const handleAddMateria = async (e) => {
     e.preventDefault();
