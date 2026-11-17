@@ -31,3 +31,8 @@ lerna-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+# Archivos de respaldo y bases de datos locales opcionales
+*.sqlite
+*.sqlite3
+*.sql
