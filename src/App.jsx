@@ -261,7 +261,8 @@ export default function App() {
             <ProfesoresView 
               profesores={profesores} 
               searchTerm={searchTerm} 
-              toggleEstadoPagoProfesor={toggleEstadoPagoProfesor} 
+              toggleEstadoPagoProfesor={toggleEstadoPagoProfesor}
+              onRefreshProfesores={fetchData}
             />
           )}
 
